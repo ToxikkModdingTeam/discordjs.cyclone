@@ -1,0 +1,21 @@
+{
+  "name": "cyclone",
+  "version": "1.0.0",
+  "description": "blabla",
+  "main": "Cyclone.js",
+  "dependencies": {
+    "npm": "^3.6.0",
+    "socket.io-client": "^1.7.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://Chatouille@bitbucket.org/toxikkmoddingteam/discordjs.cyclone.git"
+  },
+  "author": "Chatouille",
+  "license": "ISC",
+  "homepage": "https://bitbucket.org/toxikkmoddingteam/discordjs.cyclone#readme"
+}

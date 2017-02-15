@@ -1,0 +1,5 @@
+node.exe
+npm.cmd
+node_modules/
+master/config.js
+slave/config.js
