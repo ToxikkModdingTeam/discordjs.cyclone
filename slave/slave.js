@@ -38,7 +38,7 @@ socket.on('launch', function(s) {
 		socket.emit('launch', link);
 	})
 	.catch(function(err) {
-		console.error(err);
+		console.error("Failed to launch server", err);
 	});
 });
 
@@ -50,43 +50,41 @@ socket.on('disconnect', function() {
 function updateLoop() {
 	listServers()
 	.then(function(running) {
-		return new Promise(function(resolve, reject) {
-			var bDirty = false;
-			var numInstances = 0;
-			for ( var g in status.games ) {
-				for ( var s in status.games[g] ) {
-					if ( running[s] != status.games[g][s] ) {
-						if ( running[s] === undefined ) {
-							console.log("[ERROR] Server " + s + " does not exist in ServerLauncher configuration!");
-							delete status.games[g][s];
-						}
-						else
-							status.games[g][s] = running[s];
-						bDirty = true;
+		var bDirty = false;
+		var numInstances = 0;
+		for ( var g in status.games ) {
+			for ( var s in status.games[g] ) {
+				if ( running[s] != status.games[g][s] ) {
+					if ( running[s] === undefined ) {
+						console.log("[ERROR] Server " + s + " does not exist in ServerLauncher configuration!");
+						delete status.games[g][s];
 					}
-					if ( running[s] )
-						numInstances++;
+					else
+						status.games[g][s] = running[s];
+					bDirty = true;
 				}
-				if ( Object.keys(status.games[g]).length == 0 )
-					delete status.games[g];
+				if ( running[s] )
+					numInstances++;
 			}
-			if ( numInstances != status.numInstances ) {
-				status.numInstances = numInstances;
-				bDirty = true;
-			}
-			resolve(bDirty);
-		});
-	})
-	.then(function(bDirty) {
+			if ( Object.keys(status.games[g]).length == 0 )
+				delete status.games[g];
+		}
+		if ( numInstances != status.numInstances ) {
+			status.numInstances = numInstances;
+			bDirty = true;
+		}
+
 		if ( bDirty ) {
 			console.log("Sending status");
 			socket.emit('status', status);
 		}
-		setTimeout(updateLoop, 10000);
 	})
 	.catch(function(err) {
 		console.error("Failed to update status", err, err.stack);
 	})
+	.then(function() {
+		setTimeout(updateLoop, Config.updateInterval);
+	});
 }
 
 

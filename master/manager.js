@@ -35,10 +35,10 @@ module.exports = function(Config) {
 							resolve();
 					});
 				})
-				.then(function() {
-					debug("Master listening on port " + Config.port);
-					launcherLoop();
-				});
+			})
+			.then(function() {
+				debug("Master listening on port " + Config.port);
+				launcherLoop();
 			});
 		},
 
@@ -91,10 +91,9 @@ module.exports = function(Config) {
 			}, Config.slaveAuthTimeout);
 
 			socket.once('auth', function(data) {
-				if ( data == Config.slaveKey ) {
-					clearTimeout(authTimeout);
+				clearTimeout(authTimeout);
+				if ( data == Config.slaveKey )
 					ready();
-				}
 				else {
 					debug("Booting slave (auth failed)");
 					socket.disconnect(true);
@@ -105,11 +104,11 @@ module.exports = function(Config) {
 		function ready() {
 			debug("Slave authed");
 
-			var slave = { socket:socket, name:undefined, maxInstances:0, numInstances:0, games:{}, actualGames:{} };
+			var slave = { socket:socket, name:undefined, maxInstances:0, numInstances:0, games:{} };
 			Manager.slaves[socket.id] = slave;
 
 			socket.on('status', function(status) {
-				debug("Slave updated status", status);
+				debug("Slave updated status ", status);
 				for ( var k in status ) slave[k] = status[k];
 				recalcAdvertisedGames();
 			});
@@ -143,7 +142,7 @@ module.exports = function(Config) {
 		Bot.setStatus(numInstances + "/" + maxInstances + " instances");
 		Bot.dirtyTopic = true;
 		checkLaunchGame = true;
-		debug("Advertised games: ", Manager.games);
+		debug("Advertised games ", Manager.games);
 	}
 
 	function launcherLoop() {
@@ -155,6 +154,7 @@ module.exports = function(Config) {
 
 			checkLaunchGame = false;
 
+			// List games that have enough players
 			var games = [];
 			for ( var g in Manager.games ) {
 				if ( Manager.games[g].curPlayers >= Manager.games[g].reqPlayers )
@@ -163,16 +163,19 @@ module.exports = function(Config) {
 			if ( games.length == 0 )
 				return;
 
+			// Sort by game size (priority to bigger games) - is this good ?
 			games.sort(function(g1,g2) { return (g2.reqPlayers - g1.reqPlayers); });
+
 			for ( var i=0; i<games.length; i++ ) {
 				var g = games[i].g;
 
+				// Find a server available to host this game
 				for ( var id in Manager.slaves ) { var slave = Manager.slaves[id];
 					if ( !slave.games[g] )
 						continue;
 
 					for ( var s in slave.games[g] ) {
-						if ( slave.games[g][s] === true )
+						if ( slave.games[g][s] === true )	// true = busy (not available)
 							continue;
 
 						debug("Preparing server " + slave.name + ":" + s);
@@ -193,12 +196,15 @@ module.exports = function(Config) {
 							].join('\n'));
 						})
 						.catch(function(err) {
-							debug("Failed to launch server (" + slave.name + " : " + s + ")", err);
+							debug("Failed to launch server (" + slave.name + " : " + s + ") : ", err);
 							Bot.notify("Failed to launch server :crying_cat_face:");
 						});
 					}
 				}
 			}
+		})
+		.catch(function(err) {
+			debug("ERROR - Code error: ", err.stack);
 		})
 		.then(function() {
 			setTimeout(launcherLoop, Config.launcherLoopInterval);

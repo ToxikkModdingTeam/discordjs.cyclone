@@ -25,16 +25,20 @@ module.exports = function(Config) {
 		},
 
 		notify: function(text) {
-			return ensureSendMessage(Config.channel, "[NOTICE] " + text);
+			return utils.trySeveral(sendMessage, { chan: Config.channel, text: "[NOTICE] " + text }, 5, 1000)
+			.catch(function(err) {
+				debug("Failed to send message: ", err);
+				throw err;
+			});
 		},
 
 		setStatus: function(status) {
 			if ( status != currentStatus ) {
 				debug("Set status '" + status + "'");
 				//NOTE: don't try several as this could get spammy  (no managed loop)
-				return client.setPlayingGame(status, function(err) {
-					if ( !err )
-						currentStatus = status;
+				return setPlayingGame(status)
+				.then(function() {
+					currentStatus = status;
 				});
 			}
 		},
@@ -117,15 +121,15 @@ module.exports = function(Config) {
 					Promise.resolve()
 					.then(function() {
 						if ( Config.hasTopicPerms )
-							return trySeveral(setChannelTopic, {chan:Config.channel, topic:topic}, 3, 1000)
+							return utils.trySeveral(setChannelTopic, {chan:Config.channel, topic:topic}, 3, 1000);
 						else
-							return ensureSendMessage(Config.channel, "Topic update:\n" + topic)
+							return utils.trySeveral(sendMessage, {chan:Config.channel, text:topic}, 3, 1000);
 					})
 					.then(function() {
 						lastTopic = topic;
 					})
 					.catch(function(err) {
-						debug("Failed to update topic", err);
+						debug("Failed to update topic: ", err);
 						//Bot.dirtyTopic = true;	//retry later ?
 					});
 				}
@@ -140,7 +144,8 @@ module.exports = function(Config) {
 				return utils.trySeveral(login, null, 100, 5000);
 			})
 			.catch(function(err) {
-				debug("Failed to reconnect");
+				debug("Failed to reconnect: ", err);
+				process.exit(1);
 			});
 		});
 	}
@@ -149,7 +154,7 @@ module.exports = function(Config) {
 		// disable handlers
 		client.removeAllListeners('message');
 		client.removeAllListeners('presence');
-		client.removeAllListeners('updateloop');
+		client.removeAllListeners('updatetopic');
 		client.removeAllListeners('disconnected');
 	}
 
@@ -160,13 +165,13 @@ module.exports = function(Config) {
 			case 'help':
 				reply(message, "```" + [
 					"USAGE",
-					"   " + Config.prefix + utils.padAlignLeft("add <game>", 10) + " : register for a game",
-					"   " + Config.prefix + utils.padAlignLeft("add *", 10)      + " : register for all available games",
-					"   " + Config.prefix + utils.padAlignLeft("add +", 10)      + " : register for all non-1v1 games",
-					"   " + Config.prefix + utils.padAlignLeft("me", 10)         + " : list games you are registered for",
-					"   " + Config.prefix + utils.padAlignLeft("rm", 10)         + " : unregister from all",
-					"   " + Config.prefix + utils.padAlignLeft("rm <game>", 10)  + " : unregister from a game",
-					"   " + Config.prefix + utils.padAlignLeft("info", 10)       + " : show bot state info",
+					"   " + Config.prefix + "add <game> : register for a game",
+					"   " + Config.prefix + "add *      : register for all available games",
+					"   " + Config.prefix + "add +      : register for all non-1v1 games",
+					"   " + Config.prefix + "me         : list games you are registered for",
+					"   " + Config.prefix + "rm         : unregister from all",
+					"   " + Config.prefix + "rm <game>  : unregister from a game",
+					"   " + Config.prefix + "info       : show bot state info",
 				].join('\n') + "```");
 				break;
 
@@ -188,7 +193,7 @@ module.exports = function(Config) {
 				var lines = [];
 				lines.push("GAMEMODES");
 				for ( var g in games )
-					lines.push("   " + utils.padAlignLeft(g, 10) + " » "+ games[g].machines + " machines - " + games[g].numInstances + "/" + games[g].maxInstances + " instances - " + Manager.games[g].curPlayers + "/" + Manager.games[g].reqPlayers + " players");
+					lines.push("   " + utils.padAlignLeft(g, 10) + " » "+ utils.plural(games[g].machines, " machine") + " - " + games[g].numInstances + "/" + games[g].maxInstances + " instances - " + Manager.games[g].curPlayers + "/" + Manager.games[g].reqPlayers + " players");
 				lines.push("");
 				lines.push("MACHINES");
 				for ( var id in Manager.slaves )
@@ -279,15 +284,15 @@ module.exports = function(Config) {
 		});
 	}
 
-	function ensureSendMessage(chan, text) {
-		return trySeveral(sendMessage, {chan:chan,text:text}, 5, 1000)
-		.catch(function(err) {
-			debug("Failed to send message:", err);
-		});
-	}
-
 	function reply(message, text) {
-		ensureSendMessage(message.channel, message.author.mention() + " » " + text);
+		return utils.trySeveral(sendMessage, {
+			chan: message.channel,
+			text: message.author.mention() + " » " + text,
+		}, 5, 1000)
+		.catch(function(err) {
+			debug("Failed to send message: ", err);
+			throw err;
+		});
 	}
 
 	function setChannelTopic(args) {
@@ -301,13 +306,13 @@ module.exports = function(Config) {
 		});
 	}
 
-	function setPlayingGame(args) {
+	function setPlayingGame(game) {
 		return new Promise(function(resolve, reject) {
-			client.setPlayingGame(args.game, function(err, message) {
+			client.setPlayingGame(game, function(err) {
 				if ( err )
 					reject(err);
 				else
-					resolve(message);
+					resolve();
 			});
 		});
 	}

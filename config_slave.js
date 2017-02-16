@@ -16,6 +16,8 @@ module.exports = {
 
 	maxInstances: 3,
 
+	updateInterval: 10000,
+
 	launcherPath: require('path').resolve("C:/steamcmd/steamapps/common/TOXIKK/TOXIKKServers/ToxikkServerLauncher.exe"),
 
 };

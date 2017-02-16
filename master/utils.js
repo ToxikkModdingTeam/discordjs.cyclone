@@ -4,16 +4,16 @@ const MS_MINUTE = exports.MS_MINUTE = 60000;
 const MS_HOUR = exports.MS_HOUR = 3600000;
 const MS_DAY = exports.MS_DAY = 86400000;
 
-exports.padnum = function padnum(n, len) {
+var padnum = exports.padnum = function(n, len) {
 	return ("00000000" + n).substr(-len, len);
 }
 
-exports.cutstring = function cutstring(str, len) {
+var cutstring = exports.cutstring = function(str, len) {
 	if ( str && str.length > len ) return str.substring(0, len-3) + "...";
 	return str;
 }
 
-exports.GametypeToHuman = GametypeToHuman = {
+var GametypeToHuman = exports.GametypeToHuman = {
 	crzbloodlust: "Bloodlust",
 	crzteamgame: "SquadAssault",
 	crzcellcapture: "CellCapture",
@@ -27,7 +27,7 @@ exports.GametypeToHuman = GametypeToHuman = {
 	d2dgame: "Tox2D",
 };
 
-exports.HumanToGametype = HumanToGametype = {};
+var HumanToGametype = exports.HumanToGametype = {};
 HumanToGametype.bl = HumanToGametype.bloodlust = 'crzbloodlust';
 HumanToGametype.sa = HumanToGametype.squadassault = 'crzteamgame';
 HumanToGametype.cc = HumanToGametype.cellcapture = 'crzcellcapture';
@@ -37,23 +37,23 @@ HumanToGametype['2d'] = HumanToGametype.d2d = 'd2dgame';
 HumanToGametype.tt = HumanToGametype.tr = HumanToGametype.trial = HumanToGametype.trials = 'ttgame';
 HumanToGametype.if = HumanToGametype.inv = HumanToGametype.infekkted = HumanToGametype.invasion = 'infekktedgame';
 
-exports.joinObjects = function joinObjects(arr, key, delim) {
+var joinObjects = exports.joinObjects = function(arr, key, delim) {
 	var res = "";
 	for ( var i in arr ) res += arr[i][key] + delim;
 	return res.substring(0,res.length-delim.length);
 }
 
-exports.joinCustom = function joinCustom(arr, delim, func) {
+var joinCustom = exports.joinCustom = function(arr, delim, func) {
 	var res = "";
 	for ( var i in arr ) res += func(arr[i]) + delim;
 	return res.substring(0,res.length-delim.length);
 }
 
-exports.plural = function plural(count, singular, plural) {
+var plural = exports.plural = function(count, singular, plural) {
 	return count + ( (count == 1) ? singular : (plural || (singular+'s')) );
 }
 
-exports.formatTimeSince = function formatTimeSince(timestamp) {
+var formatTimeSince = exports.formatTimeSince = function(timestamp) {
 	var ms = (new Date()).getTime() - timestamp;
 	var d = Math.floor(ms / MS_DAY);
 	ms = ms % MS_DAY;
@@ -69,29 +69,29 @@ exports.formatTimeSince = function formatTimeSince(timestamp) {
 	return plural(s, " second") + " " + ms + " ms ago";
 }
 
-exports.randomItem = function randomItem(array) {
+var randomItem = exports.randomItem = function(array) {
 	return array[Math.floor(Math.random()*array.length)];
 }
 
-exports.padAlignLeft = function padAlignLeft(str, n) {
+var padAlignLeft = exports.padAlignLeft = function(str, n) {
 	var res = String(str).substr(0,n);
 	while ( res.length < n )
 		res += ' ';
 	return res;
 }
 
-exports.padAlignRight = function padAlignRight(str, n) {
+var padAlignRight = exports.padAlignRight = function(str, n) {
 	var res = String(str).substr(0,n);
 	while ( res.length < n )
 		res = ' ' + res;
 	return res;
 }
 
-cmdPath = exports.cmdPath = function(path) {
+var cmdPath = exports.cmdPath = function(path) {
 	return '"' + path + '"'
 }
 
-trySeveral = exports.trySeveral = function(func, args, maxAttemps, interval) {
+var trySeveral = exports.trySeveral = function(func, args, maxAttemps, interval) {
 	if ( maxAttemps <= 1 )
 		return func(args);
 
@@ -103,7 +103,7 @@ trySeveral = exports.trySeveral = function(func, args, maxAttemps, interval) {
 	});
 }
 
-delayPromise = exports.delayPromise = function(delay) {
+var delayPromise = exports.delayPromise = function(delay) {
 	return new Promise(function(resolve, reject) {
 		setTimeout(resolve, delay);
 	});
