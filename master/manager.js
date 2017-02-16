@@ -123,10 +123,12 @@ module.exports = function(Config) {
 
 	function recalcAdvertisedGames() {
 		var newGames = {};
-		for ( var id in Manager.slaves ) {
-			Manager.slaves[id].actualGames = {};
-			for ( var g in Manager.slaves[id].games ) {
-				if ( Object.keys(Manager.slaves[id].games).length > 0 ) {
+		var numInstances = 0, maxInstances = 0;
+		for ( var id in Manager.slaves ) { var slave = Manager.slaves[id];
+			numInstances += slave.numInstances;
+			maxInstances += slave.maxInstances;
+			for ( var g in slave.games ) {
+				if ( Object.keys(slave.games).length > 0 ) {
 					newGames[g] = Manager.games[g];
 					if ( !newGames[g] ) {
 						newGames[g] = { reqPlayers:Config.games[g], curPlayers:0, players:{} };
@@ -134,10 +136,11 @@ module.exports = function(Config) {
 					}
 				}
 				else
-					delete Manager.slaves[id].games[g];
+					delete slave.games[g];
 			}
 		}
 		Manager.games = newGames;
+		Bot.setStatus(numInstances + "/" + maxInstances + " instances");
 		Bot.dirtyTopic = true;
 		checkLaunchGame = true;
 		debug("Advertised games: ", Manager.games);

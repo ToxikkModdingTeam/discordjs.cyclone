@@ -5,6 +5,7 @@ module.exports = {
 	pass    : "",
 	channel : "000000000000000000",
 	admin   : "000000000000000000",
+	hasTopicPerms: false,
 
 // Pugbot
 	prefix: '.',

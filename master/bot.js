@@ -12,7 +12,7 @@ module.exports = function(Config) {
 
 	var Bot = {
 
-		dirtyTopic: false,
+		dirtyTopic: true,
 
 		setManager: function(newManager) {
 			Manager = newManager;
@@ -28,6 +28,16 @@ module.exports = function(Config) {
 			return ensureSendMessage(Config.channel, "[NOTICE] " + text);
 		},
 
+		setStatus: function(status) {
+			if ( status != currentStatus ) {
+				debug("Set status '" + status + "'");
+				//NOTE: don't try several as this could get spammy  (no managed loop)
+				return client.setPlayingGame(status, function(err) {
+					if ( !err )
+						currentStatus = status;
+				});
+			}
+		},
 	};
 
 
@@ -37,6 +47,8 @@ module.exports = function(Config) {
 
 	var Manager;
 	var client;
+
+	var currentStatus = "";
 
 	function login() {
 		return new Promise(function(resolve, reject) {
@@ -94,15 +106,29 @@ module.exports = function(Config) {
 		var lastTopic = "BLEH";
 		client.on('updatetopic', function() {
 			if ( Bot.dirtyTopic ) {
+				Bot.dirtyTopic = false;
+
 				var games = [];
 				for ( var g in Manager.games )
 					games.push(g + " (" + Manager.games[g].curPlayers + "/" + Manager.games[g].reqPlayers + ")");
 				var topic = games.join("    -    ") || "<empty>";
 				if ( topic != lastTopic ) {
-					ensureSendMessage(Config.channel, "Topic update:\n" + topic);
-					lastTopic = topic;
+					debug("Topic update: " + topic);
+					Promise.resolve()
+					.then(function() {
+						if ( Config.hasTopicPerms )
+							return trySeveral(setChannelTopic, {chan:Config.channel, topic:topic}, 3, 1000)
+						else
+							return ensureSendMessage(Config.channel, "Topic update:\n" + topic)
+					})
+					.then(function() {
+						lastTopic = topic;
+					})
+					.catch(function(err) {
+						debug("Failed to update topic", err);
+						//Bot.dirtyTopic = true;	//retry later ?
+					});
 				}
-				Bot.dirtyTopic = false;
 			}
 		});
 
@@ -262,6 +288,28 @@ module.exports = function(Config) {
 
 	function reply(message, text) {
 		ensureSendMessage(message.channel, message.author.mention() + " » " + text);
+	}
+
+	function setChannelTopic(args) {
+		return new Promise(function(resolve, reject) {
+			client.setChannelTopic(args.chan, args.topic, function(err, message) {
+				if ( err )
+					reject(err);
+				else
+					resolve(message);
+			});
+		});
+	}
+
+	function setPlayingGame(args) {
+		return new Promise(function(resolve, reject) {
+			client.setPlayingGame(args.game, function(err, message) {
+				if ( err )
+					reject(err);
+				else
+					resolve(message);
+			});
+		});
 	}
 
 	function debug(key, obj) {
