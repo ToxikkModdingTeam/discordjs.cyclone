@@ -52,6 +52,7 @@ module.exports = function(Config) {
 	var Manager;
 	var client;
 
+	var bStartup = true;
 	var currentStatus = "";
 
 	function login() {
@@ -75,7 +76,14 @@ module.exports = function(Config) {
 	}
 
 	function ready() {
-		Bot.notify("I has rebooted :cat:");
+		if ( bStartup ) {
+			Bot.notify("I has rebooted :cat:");
+			bStartup = false;
+		}
+		else {
+			// coming back from disconnect - set status back
+			Bot.setStatus(currentStatus);
+		}
 
 		// setup handlers
 
@@ -215,7 +223,7 @@ module.exports = function(Config) {
 				else {
 					if ( cmd.indexOf("+") != -1 ) {
 						for ( var g in Manager.games ) {
-							if ( Manager.Games[g].reqPlayers > 2 && Manager.registerPlayer(message.author, g) )
+							if ( Manager.games[g].reqPlayers > 2 && Manager.registerPlayer(message.author, g) )
 								ok.push(g);
 						}
 					}
