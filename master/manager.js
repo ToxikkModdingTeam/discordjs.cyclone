@@ -25,7 +25,7 @@ module.exports = function(Config) {
 			return Promise.resolve()
 			.then(function() {
 				server = http.createServer();
-				io = require('socket.io').listen(server);
+				io = socketio.listen(server);
 				io.on('connection', handleSlave);
 				return new Promise(function(resolve, reject) {
 					server.listen(Config.port, function(err) {
@@ -42,10 +42,10 @@ module.exports = function(Config) {
 			});
 		},
 
-		registerPlayer: function(user, g) {
+		registerPlayer: function(user, count, g) {
 			if ( Manager.games[g] && !Manager.games[g].players[user.id] ) {
-				Manager.games[g].players[user.id] = { name:user.name, mention:user.mention() };
-				Manager.games[g].curPlayers++;
+				Manager.games[g].players[user.id] = { name:user.name, mention:user.mention(), count:count };
+				Manager.games[g].curPlayers += count;
 				Bot.dirtyTopic = true;
 				checkLaunchGame = true;
 				return true;
@@ -55,8 +55,8 @@ module.exports = function(Config) {
 
 		unregisterPlayer: function(user, g) {
 			if ( Manager.games[g] && Manager.games[g].players[user.id] ) {
+				Manager.games[g].curPlayers -= Manager.games[g].players[user.id].count;
 				delete Manager.games[g].players[user.id];
-				Manager.games[g].curPlayers--;
 				Bot.dirtyTopic = true;
 				return true;
 			}
@@ -65,7 +65,15 @@ module.exports = function(Config) {
 
 		isRegistered: function(user, g) {
 			return (Manager.games[g] && Manager.games[g].players[user.id]);
-		}
+		},
+
+		shutdown: function() {
+			for ( var id in slaves ) {
+				try { slaves[id].socket.destroy(); }
+				catch(err) {}
+			}
+			io.server.close();
+		},
 
 	};
 
@@ -230,8 +238,8 @@ module.exports = function(Config) {
 	function unregisterAuto(p) {
 		for ( var g in Manager.games ) {
 			if ( Manager.games[g].players[p] ) {
+				Manager.games[g].curPlayers -= Manager.games[g].players[p].count;
 				delete Manager.games[g].players[p];
-				Manager.games[g].curPlayers--;
 				Bot.dirtyTopic = true;
 			}
 		}

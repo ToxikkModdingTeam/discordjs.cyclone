@@ -18,10 +18,10 @@ module.exports = function(Config) {
 			Manager = newManager;
 		},
 
-		start: function() {
+		start: function(isReload) {
 			client = new Discord.Client();
 			setInterval(function() { client.emit('updatetopic'); }, Config.topicUpdateInterval);
-			return login();
+			return login(isReload);
 		},
 
 		notify: function(text) {
@@ -42,6 +42,14 @@ module.exports = function(Config) {
 				});
 			}
 		},
+
+		shutdown: function() {
+			debug("Shutting down...");
+			return client.destroy().catch(err => {
+				debug("Failed to destroy", err);
+				unReady();	// logout doesn't work...
+			});
+		},
 	};
 
 
@@ -55,7 +63,7 @@ module.exports = function(Config) {
 	var bStartup = true;
 	var currentStatus = "";
 
-	function login() {
+	function login(isReload) {
 		return new Promise(function(resolve, reject) {
 			client.login(Config.login, Config.pass, function(err, token) {
 				if ( err )
@@ -70,20 +78,22 @@ module.exports = function(Config) {
 			.then(function() {
 				//var CHAN_PUG = client.channels.get('id', Config.channel);
 				//debug(CHAN_PUG);
-				ready();
+				ready(isReload);
 			});
 		})
 	}
 
-	function ready() {
-		if ( bStartup ) {
+	function ready(isReload) {
+
+		// Complete reboot ie. lost live data
+		if ( bStartup && !isReload )
 			Bot.notify("I has rebooted :cat:");
-			bStartup = false;
-		}
-		else {
-			// coming back from disconnect - set status back
+
+		// coming back from disconnect - set status back
+		if ( !bStartup )
 			Bot.setStatus(currentStatus);
-		}
+
+		bStartup = false;
 
 		// setup handlers
 
@@ -123,13 +133,22 @@ module.exports = function(Config) {
 				var games = [];
 				for ( var g in Manager.games )
 					games.push(g + " (" + Manager.games[g].curPlayers + "/" + Manager.games[g].reqPlayers + ")");
-				var topic = games.join("    -    ") || "<empty>";
+				var topic = games.join("   -   ") || "<empty>";
 				if ( topic != lastTopic ) {
 					debug("Topic update: " + topic);
 					Promise.resolve()
 					.then(function() {
-						if ( Config.hasTopicPerms )
-							return utils.trySeveral(setChannelTopic, {chan:Config.channel, topic:topic}, 3, 1000);
+						if ( Config.hasTopicPerms ) {
+							// try to make it blink
+							return setChannelTopic({chan:Config.channel, topic: " "})
+							.catch(function(err) {})
+							.then(function() {
+								return utils.delayPromise(500);
+							})
+							.then(function() {
+								return utils.trySeveral(setChannelTopic, {chan:Config.channel, topic:topic}, 3, 1000);
+							});
+						}
 						else
 							return utils.trySeveral(sendMessage, {chan:Config.channel, text:topic}, 3, 1000);
 					})
@@ -148,10 +167,8 @@ module.exports = function(Config) {
 			debug("Disconnected");
 			unReady();
 			utils.delayPromise(1000)
-			.then(function() {
-				return utils.trySeveral(login, null, 100, 5000);
-			})
-			.catch(function(err) {
+			.then(utils.trySeveral(login, null, 100, 5000))
+			.catch(err => {
 				debug("Failed to reconnect: ", err);
 				process.exit(1);
 			});
@@ -167,23 +184,26 @@ module.exports = function(Config) {
 	}
 
 	function userCommand(message, cmd) {
+		var addCount = 0;
 		cmd = cmd.replace(/ {2,}/g, ' ').split(' ');
 		switch ( cmd[0].toLowerCase() ) {
 
 			case 'help':
 				reply(message, "```" + [
 					"USAGE",
-					"   " + Config.prefix + "add <game> : register for a game",
-					"   " + Config.prefix + "add *      : register for all available games",
-					"   " + Config.prefix + "add +      : register for all non-1v1 games",
-					"   " + Config.prefix + "me         : list games you are registered for",
-					"   " + Config.prefix + "rm         : unregister from all",
-					"   " + Config.prefix + "rm <game>  : unregister from a game",
-					"   " + Config.prefix + "info       : show bot state info",
+					"   " + Config.prefix + "add <game>  : register for game(s)",
+					"   " + Config.prefix + "add *       : register for all available games",
+					"   " + Config.prefix + "add +       : register for all non-1v1 games",
+					"   " + Config.prefix + "add# <game> : register # players for game(s)",
+					"   " + Config.prefix + "me          : list games you registered for",
+					"   " + Config.prefix + "rm          : unregister from all",
+					"   " + Config.prefix + "rm <game>   : unregister from game(s)",
+					"   " + Config.prefix + "info        : show bot state info",
 				].join('\n') + "```");
 				break;
 
 			case 'info':
+			case 'status':
 				//precalc
 				var games = {};
 				for ( var id in Manager.slaves ) {
@@ -205,31 +225,40 @@ module.exports = function(Config) {
 				lines.push("");
 				lines.push("MACHINES");
 				for ( var id in Manager.slaves )
-					lines.push("   " + utils.padAlignLeft(Manager.slaves[id].name, 16) + " » " + Manager.slaves[id].numInstances + "/" + Manager.slaves[id].maxInstances + " instances - " + Object.keys(Manager.slaves[id].games).join(", "));
+					lines.push("   " + utils.padAlignLeft(Manager.slaves[id].name, 12) + " » " + Manager.slaves[id].numInstances + "/" + Manager.slaves[id].maxInstances + " instances for " + Object.keys(Manager.slaves[id].games).join(", "));
 
 				reply(message, "```\n" + lines.join('\n') + "```");
 				break;
 
 			case 'add':
-			case 'a':
+			case 'add1':
+				addCount = 1;
+			case 'add2':
+			case 'add3':
+			case 'add4':
+				if ( !addCount ) addCount = parseInt(cmd[0].substr(3));
+
+				if  ( !addCount )
+					return;
+
 				if ( cmd.length < 2 ) cmd.push("*");
 				var ok = [];
 				if ( cmd.indexOf("*") != -1 || cmd.indexOf("all") != -1 ) {
 					for ( var g in Manager.games ) {
-						if ( Manager.registerPlayer(message.author, g) )
+						if ( Manager.registerPlayer(message.author, addCount, g) )
 							ok.push(g);
 					}
 				}
 				else {
 					if ( cmd.indexOf("+") != -1 ) {
 						for ( var g in Manager.games ) {
-							if ( Manager.games[g].reqPlayers > 2 && Manager.registerPlayer(message.author, g) )
+							if ( Manager.games[g].reqPlayers > 2 && Manager.registerPlayer(message.author, addCount, g) )
 								ok.push(g);
 						}
 					}
 					for ( var i=1; i<cmd.length; i++ ) {
 						var g = Manager.gameMap[cmd[i].toLowerCase()];
-						if ( Manager.registerPlayer(message.author, g) )
+						if ( Manager.registerPlayer(message.author, addCount, g) )
 							ok.push(g);
 					}
 				}
